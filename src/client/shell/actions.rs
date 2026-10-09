@@ -159,6 +159,14 @@ impl ClientShellState {
                     }
                     return;
                 }
+                if matches!(
+                    action,
+                    crate::input::KeybindAction::HistoryBack
+                        | crate::input::KeybindAction::HistoryForward
+                ) {
+                    self.navigate_tab_history(action, outcome);
+                    return;
+                }
                 if self.handle_endpoint_navigation(action, outcome) {
                     return;
                 }

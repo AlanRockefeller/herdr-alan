@@ -304,4 +304,41 @@ impl ClientShellState {
         }
         true
     }
+
+    pub(super) fn navigate_tab_history(
+        &mut self,
+        action: crate::input::KeybindAction,
+        outcome: &mut ClientShellInput,
+    ) {
+        let direction = if action == crate::input::KeybindAction::HistoryForward {
+            super::tab_history::HistoryDirection::Forward
+        } else {
+            super::tab_history::HistoryDirection::Back
+        };
+        let mut history = std::mem::take(&mut self.tab_history);
+        let target = history.navigate(
+            direction,
+            std::time::Instant::now(),
+            |(endpoint_id, tab_id)| self.history_tab_available(endpoint_id, tab_id),
+        );
+        self.tab_history = history;
+        let Some((endpoint_id, tab_id)) = target else {
+            return;
+        };
+        self.focus_or_activate(endpoint_id, ClientEndpointFocusTarget::Tab(tab_id), outcome);
+    }
+
+    fn history_tab_available(&self, endpoint_id: &ClientEndpointId, tab_id: &str) -> bool {
+        let snapshot = if endpoint_id == &self.active_endpoint_id {
+            self.snapshot.as_deref()
+        } else if self.endpoint_is_online(endpoint_id) {
+            self.endpoints
+                .iter()
+                .find(|endpoint| &endpoint.endpoint_id == endpoint_id)
+                .and_then(|endpoint| endpoint.snapshot.as_deref())
+        } else {
+            None
+        };
+        snapshot.is_some_and(|snapshot| snapshot.tabs.iter().any(|tab| tab.tab_id == tab_id))
+    }
 }

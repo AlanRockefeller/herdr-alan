@@ -904,6 +904,7 @@ pub(crate) struct ClientShellState {
     pub(super) reveal_navigation_workspace: bool,
     pub(super) overlay: Option<ClientShellOverlay>,
     pub(super) previous_pane_id: Option<String>,
+    pub(super) tab_history: super::tab_history::TabHistory<(ClientEndpointId, String)>,
     pub(super) pane_mouse_gesture: Option<ClientPaneMouseGesture>,
     pub(super) link_hover: Option<super::link_hover::LinkHover>,
     pub(super) url_click_consumes_until_up: bool,
@@ -1078,6 +1079,7 @@ impl ClientShellState {
             reveal_navigation_workspace: false,
             overlay,
             previous_pane_id: None,
+            tab_history: Default::default(),
             pane_mouse_gesture: None,
             link_hover: None,
             url_click_consumes_until_up: false,
@@ -1583,6 +1585,12 @@ impl ClientShellState {
                 }
                 Some(_) => {}
             }
+        }
+        if let Some(tab_id) = snapshot.focused_tab_id.clone() {
+            self.tab_history.record(
+                (self.active_endpoint_id.clone(), tab_id),
+                std::time::Instant::now(),
+            );
         }
         self.snapshot = Some(snapshot);
         self.reconcile_pending_workspace_highlight();

@@ -2,6 +2,27 @@
 
 Terminal based agent runtime for coding agents.
 
+## herdr-alan fork workflow
+
+This fork lives at `AlanRockefeller/herdr-alan`. Official Herdr lives at
+`herdrdev/herdr`.
+
+- Before starting changes, and again before committing or pushing, fetch the
+  official repository's `master` branch. Verify the remote URL points to
+  `https://github.com/herdrdev/herdr.git` or its SSH equivalent; do not assume
+  a remote named `origin` or `upstream` is the official repository.
+- Compare the current branch against the freshly fetched official branch with
+  `git rev-list --left-right --count HEAD...<official-remote>/master`. Report
+  the first count as commits ahead and the second as commits behind. If the
+  fetch fails, say that the upstream comparison could not be verified.
+- Report when official Herdr has newer commits. Do not merge, rebase, reset,
+  or overwrite local work just to catch up unless the user asks for that.
+- Whenever changing Herdr code, configuration, documentation, or repository
+  workflow in this fork, update `README-alan.md` in the same change. Keep it an
+  accurate description of Alan's current differences from official Herdr,
+  including how to use added features and any relevant limits or validation.
+  Correct or remove descriptions when features change or reach upstream.
+
 ## Scope and Audience
 
 These instructions are layered.

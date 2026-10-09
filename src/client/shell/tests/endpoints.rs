@@ -2839,3 +2839,52 @@ fn navigator_foreign_workspace_heading_keeps_the_workspace_target() {
         }] if activated == &endpoint_id && workspace_id == "ws_1"
     ));
 }
+
+#[test]
+fn history_navigation_switches_machines_back_and_forward() {
+    let (mut state, remote) = state_with_remote();
+    let config: Config =
+        toml::from_str("[keys]\nhistory_back = 'alt+l'\nhistory_forward = 'alt+k'").unwrap();
+    state.config = ClientShellConfig::from_config(&config);
+    // Both machines use the same tab ID; history keys must keep them apart.
+    let now = std::time::Instant::now();
+    state.tab_history = Default::default();
+    state.tab_history.record(
+        (ClientEndpointId::Local, "tab_1".into()),
+        now - std::time::Duration::from_secs(10),
+    );
+    assert!(state.activate_endpoint_projection(&remote));
+    let press = |state: &mut ClientShellState, key: char| {
+        state.handle_raw_events(vec![RawInputEvent::Key(crate::input::TerminalKey::new(
+            KeyCode::Char(key),
+            KeyModifiers::ALT,
+        ))])
+    };
+
+    let outcome = press(&mut state, 'l');
+    assert!(
+        matches!(
+            outcome.actions.as_slice(),
+            [ClientShellAction::ActivateEndpoint {
+                endpoint_id: ClientEndpointId::Local,
+                target: Some(ClientEndpointFocusTarget::Tab(tab_id)),
+            }] if tab_id == "tab_1"
+        ),
+        "{:?}",
+        outcome.actions
+    );
+    assert!(state.activate_endpoint_projection(&ClientEndpointId::Local));
+
+    let outcome = press(&mut state, 'k');
+    assert!(
+        matches!(
+            outcome.actions.as_slice(),
+            [ClientShellAction::ActivateEndpoint {
+                endpoint_id,
+                target: Some(ClientEndpointFocusTarget::Tab(tab_id)),
+            }] if endpoint_id == &remote && tab_id == "tab_1"
+        ),
+        "{:?}",
+        outcome.actions
+    );
+}
