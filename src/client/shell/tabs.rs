@@ -123,6 +123,17 @@ pub(crate) fn render_tab_bar(
             right_padding = padding.saturating_sub(left) as usize,
         );
         put_text(buffer, rect.x, rect.y, rect.width, &text, style);
+        if tab_needs_attention(tab) {
+            let dot_x = rect.x.saturating_add(left);
+            put_text(
+                buffer,
+                dot_x,
+                rect.y,
+                1,
+                TAB_ATTENTION_DOT,
+                style.fg(palette.teal),
+            );
+        }
         hits.tabs.push((rect, tab.tab_id.clone()));
         first_visible.get_or_insert(index);
         last_visible = Some(index);
@@ -371,17 +382,40 @@ fn max_tab_scroll(widths: &[u16], available: u16) -> usize {
     start
 }
 
+const TAB_ATTENTION_DOT: &str = "●";
+
+/// A tab with unseen output, including tabs the user marked unread.
+fn tab_needs_attention(tab: &ClientShellTab) -> bool {
+    tab.agent_status == crate::api::schema::AgentStatus::Done
+}
+
 fn tab_label(tab: &ClientShellTab) -> String {
-    if tab.zoomed {
+    let label = if tab.zoomed {
         format!("{} Z", tab.label)
     } else {
         tab.label.clone()
+    };
+    if tab_needs_attention(tab) {
+        format!("{TAB_ATTENTION_DOT} {label}")
+    } else {
+        label
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::max_tab_scroll;
+
+    #[test]
+    fn done_tabs_get_an_attention_dot() {
+        let mut tab = crate::client::shell::tests::snapshot().tabs[0].clone();
+        tab.label = "build".into();
+        assert_eq!(super::tab_label(&tab), "build");
+        tab.agent_status = crate::api::schema::AgentStatus::Done;
+        assert_eq!(super::tab_label(&tab), "● build");
+        tab.zoomed = true;
+        assert_eq!(super::tab_label(&tab), "● build Z");
+    }
 
     #[test]
     fn trailing_scroll_limit_accounts_for_full_widths_and_separators() {
