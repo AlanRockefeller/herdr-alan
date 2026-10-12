@@ -117,3 +117,34 @@ fn agent_row_menu_marks_that_agent_unread() {
     state.activate_context_menu_item(0, &mut outcome);
     assert_eq!(tab_status(&state, "tab_2"), AgentStatus::Done);
 }
+
+fn marked_tabs(state: &ClientShellState) -> Vec<String> {
+    let mut tabs: Vec<String> = state.endpoints[0]
+        .unread
+        .marked_tabs()
+        .iter()
+        .cloned()
+        .collect();
+    tabs.sort();
+    tabs
+}
+
+#[test]
+fn only_marked_tabs_get_the_tab_bar_dot() {
+    let mut state = two_tab_state();
+    assert!(marked_tabs(&state).is_empty());
+    mark_tab_from_menu(&mut state, "tab_2");
+    assert_eq!(marked_tabs(&state), ["tab_2"]);
+    state.acknowledge_active_surface_agents(&surface_showing("pane_2"));
+    assert!(marked_tabs(&state).is_empty());
+}
+
+#[test]
+fn a_surface_ahead_of_the_snapshot_does_not_clear_marks() {
+    let mut state = two_tab_state();
+    mark_tab_from_menu(&mut state, "tab_2");
+    let mut ahead = surface_showing("pane_2");
+    ahead.projection_revision += 1;
+    assert!(!state.acknowledge_active_surface_agents(&ahead));
+    assert_eq!(tab_status(&state, "tab_2"), AgentStatus::Done);
+}

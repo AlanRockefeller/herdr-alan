@@ -41,42 +41,47 @@ default configuration, and the draft configuration reference.
 Like marking an email unread, this fork lets you put the "needs attention" dot
 back on something you glanced at but haven't dealt with yet.
 
-- Right-click a tab in the tab bar and choose **Mark unread**. Every pane in
-  that tab is marked, including plain shells with no agent.
+- Right-click a tab in the tab bar and choose **Mark unread** to mark the
+  whole tab. This works for plain shells with no agent too.
 - Right-click an agent in the sidebar's agent list and choose **Mark unread**
   to mark just that agent. This works for agents on remote machines too.
-- A marked pane shows the `done` status (the teal dot) on its agent row, its
-  workspace in the sidebar, and its tab.
-- The mark clears the next time you view it. If you mark the tab you're
-  looking at, it stays marked until you switch away and come back. Switching
-  to another machine counts as switching away. Marks don't clear while the
-  terminal window itself is unfocused.
+- A marked tab or agent shows the `done` status (the teal dot) on its agent
+  rows, its workspace in the sidebar, and its tab. Marked tabs, and tabs
+  holding a marked agent, also get a teal `●` before their name in the tab
+  bar. Official Herdr has no dots in the tab bar, and this fork adds one only
+  for marks you made.
+- The mark clears the next time you view it. A tab mark clears when you view
+  the tab, even if it is zoomed to one pane. An agent mark clears when that
+  agent's pane is on screen. If you mark what you're looking at, it stays
+  marked until you switch away and come back. Switching to another machine
+  counts as switching away. Marks don't clear while the terminal window itself
+  is unfocused, or before the screen has actually been redrawn for the view.
 - Marking never switches to the tab. Blocked agents keep their more urgent
   red status while marked.
 - Marks are kept in the TUI client's memory, per machine. They are not shared
   with other clients, are lost when the client exits, and are dropped when a
   machine's Herdr server restarts.
 
-The tab bar in this fork also shows a teal `●` before the name of any tab in
-the `done` state. Official Herdr shows status dots only in the sidebar, so this
-dot also appears for tabs whose agent finished while you were looking
-elsewhere.
-
 ## Implementation and coverage
 
 ### Mark unread
 
 Marks live in `src/client/shell/unread_marks.rs`, one set per endpoint, beside
-the existing client-side `done` tracking. Each server snapshot is projected
+the existing client-side `done` tracking. Tab marks and agent (pane) marks are
+kept separately. A mark is cleared only by a pane surface whose boot ID and
+projection revision match the cached snapshot, the same guard the existing
+`done` acknowledgement uses, so a surface received ahead of its snapshot can't
+clear a mark the user hasn't seen. Each server snapshot is projected
 with the marks applied, and the statuses they replaced are restored before the
 next projection, so unmarking a plain-shell tab returns it to its original
 status. No server, API, or wire-protocol changes were needed. Unit tests cover
-agent, tab, and workspace projection, plain shells, clearing on view, the
-"marked while visible" case, leaving a machine, blocked agents, and closed
-panes. Shell tests drive the tab and agent right-click menus, check that
-marking does not focus the tab, and check that marks survive new server
-snapshots. Validated with `cargo fmt`, Clippy with warnings denied, and all
-3,641 unit tests. Running the unit suite in one parallel pass exits with
+agent, tab, and workspace projection, plain shells, clearing on view, zoomed
+tabs, the "marked while visible" case, leaving a machine, blocked agents,
+closed panes and tabs, and the surface guard. Shell tests drive the tab and
+agent right-click menus, check that marking does not focus the tab, that marks
+survive new server snapshots, that only marked tabs get the tab-bar dot, and
+that a surface ahead of the snapshot does not clear a mark. Validated with
+`cargo fmt`, Clippy with warnings denied, and the full unit suite. Running the unit suite in one parallel pass exits with
 SIGPIPE in `server::headless` tests on this machine, on unmodified `main`
 too, so those 187 tests were run single-threaded, where they pass.
 

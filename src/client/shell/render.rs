@@ -310,6 +310,12 @@ pub(super) fn render_shell(
         }
     }
     if layout.tab_bar.height > 0 {
+        let no_marks = HashSet::new();
+        let marked_tabs = state
+            .endpoints
+            .iter()
+            .find(|endpoint| &endpoint.endpoint_id == state.active_endpoint_id)
+            .map_or(&no_marks, |endpoint| endpoint.unread.marked_tabs());
         render_tab_bar(
             buffer,
             layout.tab_bar,
@@ -318,6 +324,7 @@ pub(super) fn render_shell(
             state.tab_scroll,
             state.reveal_focused_tab,
             state.tab_drag_insert_index,
+            marked_tabs,
             &mut hits,
         );
     }

@@ -1,3 +1,4 @@
+use super::unread_marks::Visible;
 use super::*;
 
 #[derive(Clone, Debug)]
@@ -604,8 +605,11 @@ impl ClientShellState {
         }
         let unread = &mut self.endpoints[index].unread;
         unread.forget_originals();
-        if let Some(surface) = presented_surface.filter(|_| self.outer_focused != Some(false)) {
-            unread.acknowledge(&visible_panes(surface));
+        if let Some(visible) = presented_surface
+            .filter(|_| self.outer_focused != Some(false))
+            .and_then(|surface| Visible::presented(&snapshot, surface))
+        {
+            unread.acknowledge(&visible);
         }
         unread.apply(&mut snapshot);
         let previous = self.endpoints[index].snapshot.as_deref();
@@ -693,8 +697,10 @@ impl ClientShellState {
                 endpoint
                     .agent_presentation
                     .acknowledge_surface(snapshot, surface, outer_focused);
-            if outer_focused != Some(false) {
-                changed |= endpoint.unread.acknowledge(&visible_panes(surface));
+            if let Some(visible) =
+                Visible::presented(snapshot, surface).filter(|_| outer_focused != Some(false))
+            {
+                changed |= endpoint.unread.acknowledge(&visible);
             }
             endpoint.unread.apply(snapshot);
             changed
@@ -773,12 +779,4 @@ pub(super) fn local_endpoint() -> ClientShellEndpoint {
         agent_view_projection_supported: false,
         methods: None,
     }
-}
-
-fn visible_panes(surface: &PaneSurfaceFrame) -> HashSet<&str> {
-    surface
-        .panes
-        .iter()
-        .map(|pane| pane.pane_id.as_str())
-        .collect()
 }
