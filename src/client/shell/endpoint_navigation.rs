@@ -338,18 +338,17 @@ impl ClientShellState {
         boot_id: &str,
         tab_id: &str,
     ) -> bool {
-        let snapshot = if !endpoint_id.is_local() && !self.endpoint_is_online(endpoint_id) {
-            // A disconnected machine's cached snapshot can still list the tab.
+        // A disconnected machine's cached snapshot can still list the tab, and a
+        // restarted server may reuse its ID before the new boot ID arrives.
+        let snapshot = if !self.endpoint_is_online(endpoint_id) {
             None
         } else if endpoint_id == &self.active_endpoint_id {
             self.snapshot.as_deref()
-        } else if self.endpoint_is_online(endpoint_id) {
+        } else {
             self.endpoints
                 .iter()
                 .find(|endpoint| &endpoint.endpoint_id == endpoint_id)
                 .and_then(|endpoint| endpoint.snapshot.as_deref())
-        } else {
-            None
         };
         snapshot.is_some_and(|snapshot| {
             snapshot.boot_id == boot_id && snapshot.tabs.iter().any(|tab| tab.tab_id == tab_id)

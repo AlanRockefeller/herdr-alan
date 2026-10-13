@@ -15,7 +15,7 @@ to a tab on another machine without finding it again in the navigator.
 - `history_forward` moves forward after going back.
 - Tabs on different machines remain distinct even when their tab IDs match.
 - Closed tabs and unavailable machines are skipped, including the machine
-  you are on if it has disconnected. Tabs from before a machine's Herdr server
+  you are on, local or remote, while it is disconnected or reconnecting. Tabs from before a machine's Herdr server
   restarted are skipped too, because a restarted server reuses tab IDs for
   new tabs.
 - Rapidly cycling through tabs filters out intermediate visits shorter than
@@ -53,7 +53,7 @@ lands, forward-history clearing, transient views, failed-jump timeout,
 deduplication, unavailable entries, cancelled jumps, and the history size
 limit. Endpoint tests check switching between local and remote machines with
 the same tab ID using the configured keyboard shortcuts, skipping tabs from
-before a server restart, and skipping a disconnected active machine.
+before a server restart, and skipping disconnected local and remote machines.
 
 ### Validation at the initial fork commit
 

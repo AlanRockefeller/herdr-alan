@@ -2931,3 +2931,12 @@ fn history_skips_tabs_on_the_disconnected_active_machine() {
     state.set_endpoint_status(&remote, ClientEndpointStatus::Reconnecting);
     assert!(!state.history_tab_available(&remote, "remote-boot", "tab_1"));
 }
+
+#[test]
+fn history_skips_tabs_on_a_reconnecting_local_machine() {
+    let (mut state, _) = history_state();
+    let local_boot = state.snapshot.as_deref().unwrap().boot_id.clone();
+    assert!(state.history_tab_available(&ClientEndpointId::Local, &local_boot, "tab_1"));
+    state.set_endpoint_status(&ClientEndpointId::Local, ClientEndpointStatus::Reconnecting);
+    assert!(!state.history_tab_available(&ClientEndpointId::Local, &local_boot, "tab_1"));
+}
