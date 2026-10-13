@@ -905,7 +905,9 @@ pub(crate) struct ClientShellState {
     pub(super) reveal_navigation_workspace: bool,
     pub(super) overlay: Option<ClientShellOverlay>,
     pub(super) previous_pane_id: Option<String>,
-    pub(super) tab_history: super::tab_history::TabHistory<(ClientEndpointId, String)>,
+    /// Viewed tabs as (endpoint, server boot ID, tab ID). Tab IDs restart with the
+    /// server, so the boot ID keeps a restarted server's new tabs out of old entries.
+    pub(super) tab_history: super::tab_history::TabHistory<(ClientEndpointId, String, String)>,
     pub(super) pane_mouse_gesture: Option<ClientPaneMouseGesture>,
     pub(super) link_hover: Option<super::link_hover::LinkHover>,
     pub(super) url_click_consumes_until_up: bool,
@@ -1589,7 +1591,11 @@ impl ClientShellState {
         }
         if let Some(tab_id) = snapshot.focused_tab_id.clone() {
             self.tab_history.record(
-                (self.active_endpoint_id.clone(), tab_id),
+                (
+                    self.active_endpoint_id.clone(),
+                    snapshot.boot_id.clone(),
+                    tab_id,
+                ),
                 std::time::Instant::now(),
             );
         }

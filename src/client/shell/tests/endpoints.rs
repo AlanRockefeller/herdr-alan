@@ -2849,8 +2849,9 @@ fn history_navigation_switches_machines_back_and_forward() {
     // Both machines use the same tab ID; history keys must keep them apart.
     let now = std::time::Instant::now();
     state.tab_history = Default::default();
+    let local_boot = state.snapshot.as_deref().unwrap().boot_id.clone();
     state.tab_history.record(
-        (ClientEndpointId::Local, "tab_1".into()),
+        (ClientEndpointId::Local, local_boot, "tab_1".into()),
         now - std::time::Duration::from_secs(10),
     );
     assert!(state.activate_endpoint_projection(&remote));
@@ -2887,4 +2888,46 @@ fn history_navigation_switches_machines_back_and_forward() {
         "{:?}",
         outcome.actions
     );
+}
+
+fn history_state() -> (ClientShellState, ClientEndpointId) {
+    let (mut state, remote) = state_with_remote();
+    let config: Config =
+        toml::from_str("[keys]\nhistory_back = 'alt+l'\nhistory_forward = 'alt+k'").unwrap();
+    state.config = ClientShellConfig::from_config(&config);
+    state.tab_history = Default::default();
+    (state, remote)
+}
+
+fn press_history_back(state: &mut ClientShellState) -> ClientShellInput {
+    state.handle_raw_events(vec![RawInputEvent::Key(crate::input::TerminalKey::new(
+        KeyCode::Char('l'),
+        KeyModifiers::ALT,
+    ))])
+}
+
+#[test]
+fn history_skips_tabs_from_before_a_server_restart() {
+    let (mut state, remote) = history_state();
+    // The same tab ID on a restarted server is a different tab.
+    state.tab_history.record(
+        (remote.clone(), "old-remote-boot".into(), "tab_1".into()),
+        std::time::Instant::now() - std::time::Duration::from_secs(10),
+    );
+    let local_boot = state.snapshot.as_deref().unwrap().boot_id.clone();
+    state.tab_history.record(
+        (ClientEndpointId::Local, local_boot, "tab_1".into()),
+        std::time::Instant::now(),
+    );
+    let outcome = press_history_back(&mut state);
+    assert!(outcome.actions.is_empty(), "{:?}", outcome.actions);
+}
+
+#[test]
+fn history_skips_tabs_on_the_disconnected_active_machine() {
+    let (mut state, remote) = history_state();
+    assert!(state.activate_endpoint_projection(&remote));
+    assert!(state.history_tab_available(&remote, "remote-boot", "tab_1"));
+    state.set_endpoint_status(&remote, ClientEndpointStatus::Reconnecting);
+    assert!(!state.history_tab_available(&remote, "remote-boot", "tab_1"));
 }

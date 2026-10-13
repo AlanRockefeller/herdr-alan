@@ -319,17 +319,29 @@ impl ClientShellState {
         let target = history.navigate(
             direction,
             std::time::Instant::now(),
-            |(endpoint_id, tab_id)| self.history_tab_available(endpoint_id, tab_id),
+            |(endpoint_id, boot_id, tab_id)| {
+                self.history_tab_available(endpoint_id, boot_id, tab_id)
+            },
         );
         self.tab_history = history;
-        let Some((endpoint_id, tab_id)) = target else {
+        let Some((endpoint_id, _, tab_id)) = target else {
             return;
         };
-        self.focus_or_activate(endpoint_id, ClientEndpointFocusTarget::Tab(tab_id), outcome);
+        if !self.focus_or_activate(endpoint_id, ClientEndpointFocusTarget::Tab(tab_id), outcome) {
+            self.tab_history.cancel_navigation();
+        }
     }
 
-    fn history_tab_available(&self, endpoint_id: &ClientEndpointId, tab_id: &str) -> bool {
-        let snapshot = if endpoint_id == &self.active_endpoint_id {
+    pub(super) fn history_tab_available(
+        &self,
+        endpoint_id: &ClientEndpointId,
+        boot_id: &str,
+        tab_id: &str,
+    ) -> bool {
+        let snapshot = if !endpoint_id.is_local() && !self.endpoint_is_online(endpoint_id) {
+            // A disconnected machine's cached snapshot can still list the tab.
+            None
+        } else if endpoint_id == &self.active_endpoint_id {
             self.snapshot.as_deref()
         } else if self.endpoint_is_online(endpoint_id) {
             self.endpoints
@@ -339,6 +351,8 @@ impl ClientShellState {
         } else {
             None
         };
-        snapshot.is_some_and(|snapshot| snapshot.tabs.iter().any(|tab| tab.tab_id == tab_id))
+        snapshot.is_some_and(|snapshot| {
+            snapshot.boot_id == boot_id && snapshot.tabs.iter().any(|tab| tab.tab_id == tab_id)
+        })
     }
 }

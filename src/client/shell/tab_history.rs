@@ -79,6 +79,11 @@ impl<K: Clone + PartialEq> TabHistory<K> {
         self.last_recorded_at = Some(now);
     }
 
+    /// Drops the jump in flight because its focus request was not sent.
+    pub(super) fn cancel_navigation(&mut self) {
+        self.navigating = None;
+    }
+
     /// Starts a jump and returns its target, skipping entries `available` rejects.
     /// Repeated calls before the jump lands continue from the pending target.
     pub(super) fn navigate(
@@ -234,6 +239,16 @@ mod tests {
             history.navigate(HistoryDirection::Back, now, |key| *key != "closed"),
             Some("a")
         );
+    }
+
+    #[test]
+    fn a_cancelled_jump_does_not_ignore_later_views() {
+        let mut history = TabHistory::default();
+        let now = visit(&mut history, &["a", "b", "c"], Instant::now());
+        assert_eq!(back(&mut history, now), Some("b"));
+        history.cancel_navigation();
+        history.record("x", now + Duration::from_secs(1));
+        assert_eq!(back(&mut history, now + Duration::from_secs(2)), Some("c"));
     }
 
     #[test]
