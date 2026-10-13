@@ -46,10 +46,10 @@ back on something you glanced at but haven't dealt with yet.
 - Right-click an agent in the sidebar's agent list and choose **Mark unread**
   to mark just that agent. This works for agents on remote machines too.
 - A marked tab or agent shows the `done` status (the teal dot) on its agent
-  rows, its workspace in the sidebar, and its tab. Marked tabs, and tabs
-  holding a marked agent, also get a teal `●` before their name in the tab
-  bar. Official Herdr has no dots in the tab bar, and this fork adds one only
-  for marks you made.
+  rows, its workspace in the sidebar, and its tab. Tabs you marked from the
+  tab menu also get a teal `●` before their name in the tab bar. Official
+  Herdr has no dots in the tab bar, and this fork adds one only for tabs you
+  marked; marking an agent from the sidebar doesn't add one.
 - The mark clears the next time you view it. A tab mark clears when you view
   the tab, even if it is zoomed to one pane. An agent mark clears when that
   agent's pane is on screen. If you mark what you're looking at, it stays
@@ -79,7 +79,8 @@ agent, tab, and workspace projection, plain shells, clearing on view, zoomed
 tabs, the "marked while visible" case, leaving a machine, blocked agents,
 closed panes and tabs, and the surface guard. Shell tests drive the tab and
 agent right-click menus, check that marking does not focus the tab, that marks
-survive new server snapshots, that only marked tabs get the tab-bar dot, and
+survive new server snapshots, that only tabs marked from the tab menu get
+the tab-bar dot, and
 that a surface ahead of the snapshot does not clear a mark. Validated with
 `cargo fmt`, Clippy with warnings denied, and the full unit suite. Running the unit suite in one parallel pass exits with
 SIGPIPE in `server::headless` tests on this machine, on unmodified `main`

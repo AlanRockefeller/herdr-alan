@@ -17,7 +17,8 @@ pub(super) struct UnreadMarks {
     panes: HashMap<String, bool>,
     /// Marked tab IDs, with the same waiting flag as `panes`.
     tabs: HashMap<String, bool>,
-    /// Tabs shown with the tab bar's unread dot, refreshed by `apply`.
+    /// Tabs the user marked, for the tab bar's dot, refreshed by `apply`.
+    /// Tabs holding a marked agent are left out: the user marked the agent.
     marked_tabs: HashSet<String>,
     /// Statuses replaced by `apply`, restored before the next projection.
     originals: Originals,
@@ -76,7 +77,7 @@ impl UnreadMarks {
         self.panes.is_empty() && self.tabs.is_empty()
     }
 
-    /// Tabs the user marked, or that hold a marked pane, as of the last `apply`.
+    /// Tabs the user marked from the tab menu, as of the last `apply`.
     pub(super) fn marked_tabs(&self) -> &HashSet<String> {
         &self.marked_tabs
     }
@@ -155,18 +156,19 @@ impl UnreadMarks {
         self.tabs
             .retain(|tab_id, _| tab_ids.contains(tab_id.as_str()));
         self.marked_tabs = self.tabs.keys().cloned().collect();
+        let mut tabs = self.marked_tabs.clone();
         for pane in &snapshot.panes {
             if self.panes.contains_key(&pane.pane_id) {
-                self.marked_tabs.insert(pane.tab_id.clone());
+                tabs.insert(pane.tab_id.clone());
             }
         }
-        if self.marked_tabs.is_empty() {
+        if tabs.is_empty() {
             return;
         }
         let workspaces: HashSet<String> = snapshot
             .tabs
             .iter()
-            .filter(|tab| self.marked_tabs.contains(&tab.tab_id))
+            .filter(|tab| tabs.contains(&tab.tab_id))
             .map(|tab| tab.workspace_id.clone())
             .collect();
         for agent in &mut snapshot.agents {
@@ -179,7 +181,7 @@ impl UnreadMarks {
             }
         }
         for tab in &mut snapshot.tabs {
-            if self.marked_tabs.contains(&tab.tab_id) {
+            if tabs.contains(&tab.tab_id) {
                 raise(&mut tab.agent_status, &tab.tab_id, &mut self.originals.tabs);
             }
         }
@@ -345,7 +347,10 @@ mod tests {
         marks.apply(&mut snapshot);
         use AgentStatus::*;
         assert_eq!(statuses(&snapshot), (Done, Done, Unknown, Done));
-        assert_eq!(marks.marked_tabs(), &HashSet::from(["t1".to_owned()]));
+        assert!(
+            marks.marked_tabs().is_empty(),
+            "the tab bar dot is only for tabs the user marked"
+        );
     }
 
     #[test]

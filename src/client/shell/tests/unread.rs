@@ -116,6 +116,10 @@ fn agent_row_menu_marks_that_agent_unread() {
     let mut outcome = ClientShellInput::default();
     state.activate_context_menu_item(0, &mut outcome);
     assert_eq!(tab_status(&state, "tab_2"), AgentStatus::Done);
+    assert!(
+        marked_tabs(&state).is_empty(),
+        "marking an agent does not dot its tab"
+    );
 }
 
 fn marked_tabs(state: &ClientShellState) -> Vec<String> {
