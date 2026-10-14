@@ -8,7 +8,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::api::schema::AgentStatus;
-use crate::protocol::{ClientShellSnapshot, PaneSurfaceFrame};
+use crate::protocol::{ClientShellAgent, ClientShellSnapshot, PaneSurfaceFrame};
 
 #[derive(Clone, Debug, Default)]
 pub(super) struct UnreadMarks {
@@ -112,6 +112,16 @@ impl UnreadMarks {
         acknowledge(&mut self.panes, &visible.panes);
         acknowledge(&mut self.tabs, &visible.tabs);
         self.panes.len() + self.tabs.len() != before
+    }
+
+    /// The status `agent` had before a mark raised it, for checks that must
+    /// not mistake a manual mark for the agent actually finishing.
+    pub(super) fn unmarked_status(&self, agent: &ClientShellAgent) -> AgentStatus {
+        self.originals
+            .agents
+            .get(&agent.pane_id)
+            .copied()
+            .unwrap_or(agent.agent_status)
     }
 
     /// Forgets replaced statuses because `snapshot` came fresh from the server.
@@ -267,7 +277,7 @@ impl super::ClientShellState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::protocol::{ClientShellAgent, ClientShellPane};
+    use crate::protocol::ClientShellPane;
 
     fn pane(pane_id: &str, tab_id: &str) -> ClientShellPane {
         ClientShellPane {
@@ -426,6 +436,20 @@ mod tests {
         marks.mark_panes(["agent".to_owned()], &visible);
         marks.leave_view();
         assert!(marks.acknowledge(&visible));
+    }
+
+    #[test]
+    fn unmarked_status_reports_what_the_mark_replaced() {
+        let mut marks = UnreadMarks::default();
+        let mut snapshot = fixture();
+        snapshot.agents[0].agent_status = AgentStatus::Working;
+        marks.mark_panes(["agent".to_owned()], &Visible::default());
+        marks.apply(&mut snapshot);
+        assert_eq!(snapshot.agents[0].agent_status, AgentStatus::Done);
+        assert_eq!(
+            marks.unmarked_status(&snapshot.agents[0]),
+            AgentStatus::Working
+        );
     }
 
     #[test]

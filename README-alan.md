@@ -58,6 +58,9 @@ back on something you glanced at but haven't dealt with yet.
   is unfocused, or before the screen has actually been redrawn for the view.
 - Marking never switches to the tab. Blocked agents keep their more urgent
   red status while marked.
+- A mark only changes what you see. Herdr's check that an agent really
+  finished before showing a "finished" notification ignores marks, so marking
+  a working agent doesn't let a stale notification or sound through.
 - Marks are kept in the TUI client's memory, per machine. They are not shared
   with other clients, are lost when the client exits, and are dropped when a
   machine's Herdr server restarts.
@@ -77,10 +80,11 @@ next projection, so unmarking a plain-shell tab returns it to its original
 status. No server, API, or wire-protocol changes were needed. Unit tests cover
 agent, tab, and workspace projection, plain shells, clearing on view, zoomed
 tabs, the "marked while visible" case, leaving a machine, blocked agents,
-closed panes and tabs, and the surface guard. Shell tests drive the tab and
+closed panes and tabs, the surface guard, and the status a mark replaced. Shell tests drive the tab and
 agent right-click menus, check that marking does not focus the tab, that marks
 survive new server snapshots, that only tabs marked from the tab menu get
-the tab-bar dot, and
+the tab-bar dot, that marking a working agent doesn't validate a "finished"
+notification, and
 that a surface ahead of the snapshot does not clear a mark. Validated with
 `cargo fmt`, Clippy with warnings denied, and the full unit suite. Running the unit suite in one parallel pass exits with
 SIGPIPE in `server::headless` tests on this machine, on unmodified `main`

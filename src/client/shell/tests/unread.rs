@@ -152,3 +152,52 @@ fn a_surface_ahead_of_the_snapshot_does_not_clear_marks() {
     assert!(!state.acknowledge_active_surface_agents(&ahead));
     assert_eq!(tab_status(&state, "tab_2"), AgentStatus::Done);
 }
+
+#[test]
+fn marking_a_working_agent_does_not_validate_a_finished_notification() {
+    use crate::protocol::{SemanticNotification, SemanticNotificationKind};
+    let mut config = ClientShellConfig::from_config(&Config::default());
+    config.toast_delivery = crate::config::ToastDelivery::Terminal;
+    config.toast_delay_seconds = 0;
+    let mut state = ClientShellState::new(config);
+    let mut projected = snapshot();
+    projected.agents.push(crate::protocol::ClientShellAgent {
+        pane_id: "pane_1".into(),
+        workspace_id: "ws_1".into(),
+        tab_id: "tab_1".into(),
+        name: Some("agent".into()),
+        display_agent: None,
+        agent: Some("agent".into()),
+        title: None,
+        terminal_title: None,
+        terminal_title_stripped: None,
+        agent_status: AgentStatus::Working,
+        state_change_seq: 1,
+        state_labels: Vec::new(),
+        tokens: Vec::new(),
+        focused: false,
+    });
+    state.set_snapshot(Box::new(projected));
+    state.mark_panes_unread(&ClientEndpointId::Local, vec!["pane_1".into()]);
+    assert_eq!(
+        state.snapshot.as_deref().unwrap().agents[0].agent_status,
+        AgentStatus::Done
+    );
+
+    let (effects, _) = state.receive_notification(
+        &ClientEndpointId::Local,
+        SemanticNotification {
+            kind: SemanticNotificationKind::Finished,
+            title: "agent finished".into(),
+            body: None,
+            sound: None,
+            agent: Some("agent".into()),
+            workspace_id: Some("ws_1".into()),
+            tab_id: Some("background-tab".into()),
+            pane_id: Some("pane_1".into()),
+            position: None,
+        },
+        std::time::Instant::now(),
+    );
+    assert!(effects.is_empty(), "still working, so the finish must wait");
+}
