@@ -14,7 +14,10 @@ to a tab on another machine without finding it again in the navigator.
 - `history_back` returns to a previously viewed tab.
 - `history_forward` moves forward after going back.
 - Tabs on different machines remain distinct even when their tab IDs match.
-- Closed tabs and unavailable machines are skipped.
+- Closed tabs and unavailable machines are skipped, including the machine
+  you are on, local or remote, while it is disconnected or reconnecting. Tabs from before a machine's Herdr server
+  restarted are skipped too, because a restarted server reuses tab IDs for
+  new tabs.
 - Rapidly cycling through tabs filters out intermediate visits shorter than
   750 milliseconds. Revisiting a tab moves it to the newest position instead
   of keeping duplicate entries.
@@ -40,14 +43,17 @@ default configuration, and the draft configuration reference.
 
 History belongs to the TUI client and uses the existing endpoint activation and
 tab focus actions. Entries include both the machine identity and tab identity.
-During a cross-machine jump, temporary tab views are ignored while the target
-settles; pending navigation expires after three seconds.
+Entries also record the server's boot ID and are only offered while it
+matches. During a cross-machine jump, temporary tab views are ignored while the
+target settles; pending navigation expires after three seconds, or ends at
+once if the focus request could not be sent.
 
 The added tests cover back/forward traversal, repeated navigation before a jump
 lands, forward-history clearing, transient views, failed-jump timeout,
-deduplication, unavailable entries, and the history size limit. An endpoint test
-checks switching between local and remote machines with the same tab ID using
-the configured keyboard shortcuts.
+deduplication, unavailable entries, cancelled jumps, and the history size
+limit. Endpoint tests check switching between local and remote machines with
+the same tab ID using the configured keyboard shortcuts, skipping tabs from
+before a server restart, and skipping disconnected local and remote machines.
 
 ### Validation at the initial fork commit
 
