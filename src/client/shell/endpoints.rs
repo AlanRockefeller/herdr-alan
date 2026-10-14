@@ -1,3 +1,4 @@
+use super::unread_marks::Visible;
 use super::*;
 
 #[derive(Clone, Debug)]
@@ -18,6 +19,7 @@ pub(crate) struct ClientShellEndpoint {
     pub(crate) snapshot_generation: Option<u64>,
     pub(crate) agent_recency: HashMap<String, u64>,
     pub(super) agent_presentation: super::endpoint_agent_state::EndpointAgentPresentation,
+    pub(super) unread: super::unread_marks::UnreadMarks,
     pub(crate) agent_view_projection: Option<ClientEndpointAgentViewProjection>,
     pending_agent_view_projection: Option<ClientEndpointAgentViewProjection>,
     pub(crate) agent_view_projection_supported: bool,
@@ -81,6 +83,9 @@ impl ClientShellState {
                 agent_presentation: previous
                     .map(|endpoint| endpoint.agent_presentation.clone())
                     .unwrap_or_default(),
+                unread: previous
+                    .map(|endpoint| endpoint.unread.clone())
+                    .unwrap_or_default(),
                 agent_view_projection: previous
                     .and_then(|endpoint| endpoint.agent_view_projection.clone()),
                 pending_agent_view_projection: previous
@@ -130,6 +135,7 @@ impl ClientShellState {
             endpoint.methods = None;
             endpoint.agent_recency.clear();
             endpoint.agent_presentation = Default::default();
+            endpoint.unread = Default::default();
             endpoint.agent_view_projection = None;
             endpoint.pending_agent_view_projection = None;
             endpoint.agent_view_projection_supported = false;
@@ -235,6 +241,14 @@ impl ClientShellState {
         let switching_endpoint = endpoint_id != &self.active_endpoint_id;
         let agent_scroll = self.agent_scroll;
         if switching_endpoint {
+            let previous = self.active_endpoint_id.clone();
+            if let Some(endpoint) = self
+                .endpoints
+                .iter_mut()
+                .find(|endpoint| endpoint.endpoint_id == previous)
+            {
+                endpoint.unread.leave_view();
+            }
             self.active_endpoint_id = endpoint_id.clone();
             self.pane_surface = None;
             self.pending_pane_surface = None;
@@ -573,6 +587,8 @@ impl ClientShellState {
             .is_some_and(|previous| previous.boot_id != snapshot.boot_id);
         if boot_changed {
             self.retire_endpoint_notifications(endpoint_id);
+            // Pane IDs restart with the server, so old marks could land on new panes.
+            self.endpoints[index].unread = Default::default();
         }
         self.endpoints[index]
             .agent_presentation
@@ -587,6 +603,15 @@ impl ClientShellState {
                 .agent_presentation
                 .acknowledge_surface(&mut snapshot, surface, self.outer_focused);
         }
+        let unread = &mut self.endpoints[index].unread;
+        unread.forget_originals();
+        if let Some(visible) = presented_surface
+            .filter(|_| self.outer_focused != Some(false))
+            .and_then(|surface| Visible::presented(&snapshot, surface))
+        {
+            unread.acknowledge(&visible);
+        }
+        unread.apply(&mut snapshot);
         let previous = self.endpoints[index].snapshot.as_deref();
         let mut next_recency = self
             .endpoints
@@ -661,14 +686,24 @@ impl ClientShellState {
         else {
             return false;
         };
+        let outer_focused = self.outer_focused;
         let changed = {
             let endpoint = &mut self.endpoints[index];
             let Some(snapshot) = endpoint.snapshot.as_deref_mut() else {
                 return false;
             };
-            endpoint
-                .agent_presentation
-                .acknowledge_surface(snapshot, surface, self.outer_focused)
+            endpoint.unread.restore(snapshot);
+            let mut changed =
+                endpoint
+                    .agent_presentation
+                    .acknowledge_surface(snapshot, surface, outer_focused);
+            if let Some(visible) =
+                Visible::presented(snapshot, surface).filter(|_| outer_focused != Some(false))
+            {
+                changed |= endpoint.unread.acknowledge(&visible);
+            }
+            endpoint.unread.apply(snapshot);
+            changed
         };
         if changed {
             self.snapshot = self.endpoints[index].snapshot.clone();
@@ -738,6 +773,7 @@ pub(super) fn local_endpoint() -> ClientShellEndpoint {
         snapshot_generation: None,
         agent_recency: HashMap::new(),
         agent_presentation: Default::default(),
+        unread: Default::default(),
         agent_view_projection: None,
         pending_agent_view_projection: None,
         agent_view_projection_supported: false,

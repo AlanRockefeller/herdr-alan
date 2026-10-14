@@ -330,33 +330,36 @@ impl ClientShellState {
                 NotificationValidation::Current
             };
         };
-        let Some(agent) = self
+        let Some(endpoint) = self
             .endpoints
             .iter()
             .find(|endpoint| &endpoint.endpoint_id == endpoint_id)
-            .and_then(|endpoint| endpoint.snapshot.as_deref())
-            .and_then(|snapshot| {
-                snapshot
-                    .agents
-                    .iter()
-                    .find(|agent| agent.pane_id == pane_id)
-            })
         else {
             return NotificationValidation::AwaitingSnapshot;
         };
+        let Some(agent) = endpoint.snapshot.as_deref().and_then(|snapshot| {
+            snapshot
+                .agents
+                .iter()
+                .find(|agent| agent.pane_id == pane_id)
+        }) else {
+            return NotificationValidation::AwaitingSnapshot;
+        };
+        // A pane the user marked unread shows done without having finished.
+        let agent_status = endpoint.unread.unmarked_status(agent);
         match event.kind {
             SemanticNotificationKind::NeedsAttention
-                if agent.agent_status == crate::api::schema::AgentStatus::Blocked =>
+                if agent_status == crate::api::schema::AgentStatus::Blocked =>
             {
                 NotificationValidation::Current
             }
             SemanticNotificationKind::Finished
-                if agent.agent_status == crate::api::schema::AgentStatus::Done =>
+                if agent_status == crate::api::schema::AgentStatus::Done =>
             {
                 NotificationValidation::Current
             }
             SemanticNotificationKind::Finished
-                if agent.agent_status == crate::api::schema::AgentStatus::Working =>
+                if agent_status == crate::api::schema::AgentStatus::Working =>
             {
                 NotificationValidation::AwaitingSnapshot
             }

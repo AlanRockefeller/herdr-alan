@@ -1,5 +1,16 @@
 # herdr
 
+> **This is herdr-alan, Alan Rockefeller's fork of Herdr.** Changes from
+> official Herdr:
+>
+> - **Tab history:** browser-style back and forward through recently viewed
+>   tabs, across workspaces and machines (`history_back` / `history_forward`).
+> - **Mark unread:** right-click a tab or an agent and choose **Mark unread** to
+>   bring back its attention dot until you look at it again. Tabs marked this
+>   way also get a dot in the tab bar.
+>
+> Details, configuration, and limits are in [README-alan.md](README-alan.md).
+
 
 <p align="center">
   <img src="assets/logo.png" alt="herdr" width="100" />

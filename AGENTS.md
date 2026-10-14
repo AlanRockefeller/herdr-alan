@@ -18,10 +18,14 @@ This fork lives at `AlanRockefeller/herdr-alan`. Official Herdr lives at
 - Report when official Herdr has newer commits. Do not merge, rebase, reset,
   or overwrite local work just to catch up unless the user asks for that.
 - Whenever changing Herdr code, configuration, documentation, or repository
-  workflow in this fork, update `README-alan.md` in the same change. Keep it an
+  workflow in this fork, update both `README-alan.md` and the fork summary at
+  the top of `README.md` in the same change. `README-alan.md` must stay an
   accurate description of Alan's current differences from official Herdr,
   including how to use added features and any relevant limits or validation.
-  Correct or remove descriptions when features change or reach upstream.
+  The `README.md` summary lists each difference in a short line and links to
+  `README-alan.md`. Correct or remove descriptions in both files when features
+  change or reach upstream. This overrides the general rule below against
+  editing the root `README.md`.
 
 ## Scope and Audience
 

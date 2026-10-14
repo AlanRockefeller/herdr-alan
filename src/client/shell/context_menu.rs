@@ -49,7 +49,9 @@ impl ClientContextMenuOverlay {
                 item("New tab", Action::NewTab),
                 item("Rename", Action::Rename),
                 item("Close", Action::Close),
+                item("Mark unread", Action::MarkUnread),
             ],
+            ClientContextMenuTarget::Agent { .. } => vec![item("Mark unread", Action::MarkUnread)],
             ClientContextMenuTarget::Pane {
                 source_pane_id,
                 has_manual_label,
@@ -142,6 +144,24 @@ impl ClientShellState {
         }));
     }
 
+    pub(super) fn open_agent_context_menu(
+        &mut self,
+        endpoint_id: ClientEndpointId,
+        pane_id: String,
+        x: u16,
+        y: u16,
+    ) {
+        self.overlay = Some(ClientShellOverlay::ContextMenu(ClientContextMenuOverlay {
+            target: ClientContextMenuTarget::Agent {
+                endpoint_id,
+                pane_id,
+            },
+            x,
+            y,
+            highlighted: 0,
+        }));
+    }
+
     pub(super) fn open_pane_context_menu(&mut self, pane_id: String, x: u16, y: u16) {
         let Some(snapshot) = self.snapshot.as_deref() else {
             return;
@@ -197,10 +217,19 @@ impl ClientShellState {
                 close_group,
                 ..
             } => self.activate_workspace_context_action(workspace_id, close_group, action, outcome),
+            ClientContextMenuTarget::Tab { tab_id, .. }
+                if action == ClientContextMenuAction::MarkUnread =>
+            {
+                self.mark_tab_unread(&tab_id);
+            }
             ClientContextMenuTarget::Tab {
                 tab_id,
                 workspace_id,
             } => self.activate_tab_context_action(tab_id, workspace_id, action, outcome),
+            ClientContextMenuTarget::Agent {
+                endpoint_id,
+                pane_id,
+            } => self.mark_panes_unread(&endpoint_id, vec![pane_id]),
             ClientContextMenuTarget::Pane {
                 pane_id,
                 workspace_id,

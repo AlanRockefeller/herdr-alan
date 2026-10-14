@@ -12,6 +12,7 @@ pub(crate) fn render_tab_bar(
     tab_scroll: &mut usize,
     reveal_focused_tab: &mut bool,
     tab_drag_insert_index: Option<usize>,
+    marked_tabs: &HashSet<String>,
     hits: &mut ShellHitMap,
 ) {
     let palette = &config.palette;
@@ -24,7 +25,7 @@ pub(crate) fn render_tab_bar(
     let desired_widths = tabs
         .iter()
         .map(|tab| {
-            let label = tab_label(tab);
+            let label = tab_label(tab, marked_tabs);
             display_width(&label).saturating_add(4).max(MIN_TAB_WIDTH)
         })
         .collect::<Vec<_>>();
@@ -92,7 +93,7 @@ pub(crate) fn render_tab_bar(
     let mut first_visible = None;
     let mut last_visible = None;
     for (index, tab) in tabs.iter().enumerate().skip(*tab_scroll) {
-        let name = tab_label(tab);
+        let name = tab_label(tab, marked_tabs);
         let desired = desired_widths[index];
         let remaining = tab_right.saturating_sub(x);
         let width = desired.min(remaining);
@@ -123,6 +124,17 @@ pub(crate) fn render_tab_bar(
             right_padding = padding.saturating_sub(left) as usize,
         );
         put_text(buffer, rect.x, rect.y, rect.width, &text, style);
+        if marked_tabs.contains(&tab.tab_id) {
+            let dot_x = rect.x.saturating_add(left);
+            put_text(
+                buffer,
+                dot_x,
+                rect.y,
+                1,
+                TAB_UNREAD_DOT,
+                style.fg(palette.teal),
+            );
+        }
         hits.tabs.push((rect, tab.tab_id.clone()));
         first_visible.get_or_insert(index);
         last_visible = Some(index);
@@ -371,17 +383,38 @@ fn max_tab_scroll(widths: &[u16], available: u16) -> usize {
     start
 }
 
-fn tab_label(tab: &ClientShellTab) -> String {
-    if tab.zoomed {
+/// Shown before tabs the user marked unread.
+const TAB_UNREAD_DOT: &str = "●";
+
+fn tab_label(tab: &ClientShellTab, marked_tabs: &HashSet<String>) -> String {
+    let label = if tab.zoomed {
         format!("{} Z", tab.label)
     } else {
         tab.label.clone()
+    };
+    if marked_tabs.contains(&tab.tab_id) {
+        format!("{TAB_UNREAD_DOT} {label}")
+    } else {
+        label
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::max_tab_scroll;
+
+    #[test]
+    fn only_tabs_marked_unread_get_a_dot() {
+        let mut tab = crate::client::shell::tests::snapshot().tabs[0].clone();
+        tab.label = "build".into();
+        tab.agent_status = crate::api::schema::AgentStatus::Done;
+        let mut marked = std::collections::HashSet::new();
+        assert_eq!(super::tab_label(&tab, &marked), "build");
+        marked.insert(tab.tab_id.clone());
+        assert_eq!(super::tab_label(&tab, &marked), "● build");
+        tab.zoomed = true;
+        assert_eq!(super::tab_label(&tab, &marked), "● build Z");
+    }
 
     #[test]
     fn trailing_scroll_limit_accounts_for_full_widths_and_separators() {
