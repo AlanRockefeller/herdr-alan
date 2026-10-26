@@ -1,7 +1,8 @@
 # herdr
 
-> **This is herdr-alan, Alan Rockefeller's fork of Herdr.** Changes from
-> official Herdr:
+> **This is herdr-alan, Alan Rockefeller's fork of Herdr.** It incorporates
+> official Herdr v0.9.5, plus official post-release connection fixes already
+> carried by the fork. Changes from official Herdr:
 >
 > - **Tab history:** browser-style back and forward through recently viewed
 >   tabs, across workspaces and machines (`history_back` / `history_forward`).
