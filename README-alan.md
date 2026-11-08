@@ -47,20 +47,27 @@ on Windows, it is `%APPDATA%\herdr\config.toml`. These shortcuts are examples
 and can be changed. The actions also appear in keybinding help, the generated
 default configuration, and the draft configuration reference.
 
-## Mark a tab or agent unread
+## Mark a tab, workspace, or agent unread
 
 Like marking an email unread, this fork lets you put the "needs attention" dot
 back on something you glanced at but haven't dealt with yet.
 
 - Right-click a tab in the tab bar and choose **Mark unread** to mark the
   whole tab. This works for plain shells with no agent too.
+- Right-click a workspace name in the sidebar and choose **Mark unread** to
+  mark just that workspace's sidebar entry. Its tabs and agents keep their own
+  statuses. Viewing any tab in the workspace clears the mark. This works for
+  workspaces listed under other machines too: right-clicking one shows a menu
+  with only **Mark unread**, because renaming and closing still apply only to
+  the machine you are on. Marking never switches machines.
 - Right-click an agent in the sidebar's agent list and choose **Mark unread**
   to mark just that agent. This works for agents on remote machines too.
 - A marked tab or agent shows the `done` status (the teal dot) on its agent
-  rows, its workspace in the sidebar, and its tab. Tabs you marked from the
+  rows, its workspace in the sidebar, and its tab. A marked workspace shows it
+  only on the workspace. Tabs you marked from the
   tab menu also get a teal `●` before their name in the tab bar. Official
   Herdr has no dots in the tab bar, and this fork adds one only for tabs you
-  marked; marking an agent from the sidebar doesn't add one.
+  marked; marking an agent or workspace from the sidebar doesn't add one.
 - The mark clears the next time you view it. A tab mark clears when you view
   the tab, even if it is zoomed to one pane. An agent mark clears when that
   agent's pane is on screen. If you mark what you're looking at, it stays
@@ -81,8 +88,10 @@ back on something you glanced at but haven't dealt with yet.
 ### Mark unread
 
 Marks live in `src/client/shell/unread_marks.rs`, one set per endpoint, beside
-the existing client-side `done` tracking. Tab marks and agent (pane) marks are
-kept separately. A mark is cleared only by a pane surface whose boot ID and
+the existing client-side `done` tracking. Tab, workspace, and agent (pane)
+marks are kept separately. A workspace mark is cleared by a surface showing any
+pane in that workspace. Right-clicking a workspace on an inactive machine opens
+a separate `EndpointWorkspace` menu target that carries the machine identity. A mark is cleared only by a pane surface whose boot ID and
 projection revision match the cached snapshot, the same guard the existing
 `done` acknowledgement uses, so a surface received ahead of its snapshot can't
 clear a mark the user hasn't seen. Each server snapshot is projected
@@ -91,8 +100,14 @@ next projection, so unmarking a plain-shell tab returns it to its original
 status. No server, API, or wire-protocol changes were needed. Unit tests cover
 agent, tab, and workspace projection, plain shells, clearing on view, zoomed
 tabs, the "marked while visible" case, leaving a machine, blocked agents,
-closed panes and tabs, the surface guard, and the status a mark replaced. Shell tests drive the tab and
-agent right-click menus, check that marking does not focus the tab, that marks
+closed panes and tabs, the surface guard, and the status a mark replaced, plus
+workspace marks that raise only the workspace, clear when any of its tabs is
+viewed, wait when marked while visible, and drop when the workspace closes.
+Shell tests drive the tab, workspace, and agent right-click menus, check that
+every workspace menu variant offers **Mark unread**, that marking a workspace
+leaves its tabs' statuses alone and does not switch to it, that
+right-clicking another machine's workspace marks it there without switching
+machines, check that marking does not focus the tab, that marks
 survive new server snapshots, that only tabs marked from the tab menu get
 the tab-bar dot, that marking a working agent doesn't validate a "finished"
 notification, and
@@ -100,6 +115,13 @@ that a surface ahead of the snapshot does not clear a mark. Validated with
 `cargo fmt`, Clippy with warnings denied, and the full unit suite. Running the unit suite in one parallel pass exits with
 SIGPIPE in `server::headless` tests on this machine, on unmodified `main`
 too, so those 187 tests were run single-threaded, where they pass.
+
+Workspace marks were validated with `cargo fmt`, Clippy with warnings denied,
+the full `cargo nextest` suite, and the Python maintenance and UI hot-path
+architecture tests. Nextest ran 4,131 tests: 4,130 passed, and
+`machine_api_recovers_a_stale_path_before_sending_a_mutation` failed the same
+way on the unmodified tree. The Bun script tests were not run because Bun was
+not installed.
 
 ### Tab history
 

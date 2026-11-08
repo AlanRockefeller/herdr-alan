@@ -1861,6 +1861,25 @@ impl ClientShellState {
                     outcome.repaint = true;
                     return;
                 }
+                let other_workspace = (!self.sidebar_collapsed)
+                    .then(|| {
+                        self.hits.workspaces.iter().find(|hit| {
+                            hit.endpoint_id != self.active_endpoint_id
+                                && super::contains(hit.rect, point)
+                        })
+                    })
+                    .flatten()
+                    .map(|hit| (hit.endpoint_id.clone(), hit.workspace_id.clone()));
+                if let Some((endpoint_id, workspace_id)) = other_workspace {
+                    self.open_endpoint_workspace_context_menu(
+                        endpoint_id,
+                        workspace_id,
+                        mouse.column,
+                        mouse.row,
+                    );
+                    outcome.repaint = true;
+                    return;
+                }
                 let tab_id = self
                     .hits
                     .tabs

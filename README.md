@@ -6,9 +6,9 @@
 >
 > - **Tab history:** browser-style back and forward through recently viewed
 >   tabs, across workspaces and machines (`history_back` / `history_forward`).
-> - **Mark unread:** right-click a tab or an agent and choose **Mark unread** to
->   bring back its attention dot until you look at it again. Tabs marked this
->   way also get a dot in the tab bar.
+> - **Mark unread:** right-click a tab, a workspace name in the sidebar, or an
+>   agent and choose **Mark unread** to bring back its attention dot until you
+>   look at it again. Tabs marked this way also get a dot in the tab bar.
 >
 > Details, configuration, and limits are in [README-alan.md](README-alan.md).
 

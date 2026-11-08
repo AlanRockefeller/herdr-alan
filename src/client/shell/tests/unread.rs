@@ -201,3 +201,74 @@ fn marking_a_working_agent_does_not_validate_a_finished_notification() {
     );
     assert!(effects.is_empty(), "still working, so the finish must wait");
 }
+
+/// `two_tab_state`, with `tab_2` and its shell moved into a second workspace.
+fn two_workspace_state() -> ClientShellState {
+    let mut projected = two_tab_state().snapshot.as_deref().unwrap().clone();
+    let mut workspace = projected.workspaces[0].clone();
+    workspace.workspace_id = "ws_2".into();
+    workspace.agent_status = AgentStatus::Unknown;
+    projected.workspaces.push(workspace);
+    projected.tabs[1].workspace_id = "ws_2".into();
+    projected.panes[1].workspace_id = "ws_2".into();
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.set_snapshot(Box::new(projected));
+    state.set_pane_surface(surface());
+    state
+}
+
+fn workspace_status(state: &ClientShellState, workspace_id: &str) -> AgentStatus {
+    state
+        .snapshot
+        .as_deref()
+        .and_then(|snapshot| {
+            snapshot
+                .workspaces
+                .iter()
+                .find(|workspace| workspace.workspace_id == workspace_id)
+        })
+        .map(|workspace| workspace.agent_status)
+        .unwrap()
+}
+
+#[test]
+fn workspace_menu_marks_that_workspace_unread_until_viewed() {
+    let mut state = two_workspace_state();
+    state.open_workspace_context_menu("ws_2".into(), 2, 3);
+    let Some(ClientShellOverlay::ContextMenu(menu)) = state.overlay.as_ref() else {
+        panic!("workspace menu did not open");
+    };
+    let index = menu
+        .items()
+        .iter()
+        .position(|item| item.action == ClientContextMenuAction::MarkUnread)
+        .expect("workspace menu offers Mark unread");
+    let mut outcome = ClientShellInput::default();
+    state.activate_context_menu_item(index, &mut outcome);
+    assert!(
+        outcome.actions.is_empty(),
+        "marking must not switch workspaces: {:?}",
+        outcome.actions
+    );
+    assert_eq!(workspace_status(&state, "ws_2"), AgentStatus::Done);
+    assert_eq!(workspace_status(&state, "ws_1"), AgentStatus::Idle);
+    assert_eq!(
+        tab_status(&state, "tab_2"),
+        AgentStatus::Unknown,
+        "only the workspace entry is marked"
+    );
+    assert!(marked_tabs(&state).is_empty());
+
+    assert!(state.acknowledge_active_surface_agents(&surface_showing("pane_2")));
+    assert_eq!(workspace_status(&state, "ws_2"), AgentStatus::Unknown);
+}
+
+#[test]
+fn every_workspace_menu_offers_mark_unread() {
+    let mut state = two_workspace_state();
+    state.open_workspace_context_menu("ws_1".into(), 2, 3);
+    let Some(ClientShellOverlay::ContextMenu(menu)) = state.overlay.as_ref() else {
+        panic!("workspace menu did not open");
+    };
+    assert_eq!(menu.items().last().unwrap().label, "Mark unread");
+}
