@@ -5,6 +5,14 @@ workspace manager for coding agents. This document describes the additions in
 this fork. See [README.md](README.md) for the original project's overview and
 [LICENSE](LICENSE) for its Apache 2.0 license.
 
+## Upstream base
+
+This branch incorporates official Herdr v0.9.5 through the official
+`release: synchronize metadata for v0.9.5` commit. It also retains official
+post-release connection fixes previously merged through commit `6521382d`, so
+the tree is not byte-for-byte identical to the v0.9.5 tag. The fork-specific
+differences remain the tab-history and mark-unread features documented below.
+
 ## Back and forward through viewed tabs
 
 This fork adds browser-style back and forward navigation through recently
@@ -109,22 +117,26 @@ limit. Endpoint tests check switching between local and remote machines with
 the same tab ID using the configured keyboard shortcuts, skipping tabs from
 before a server restart, and skipping disconnected local and remote machines.
 
-### Validation at the initial fork commit
+### Validation after the v0.9.5 merge
 
-Formatting, Clippy with warnings denied, and the maintenance, architecture,
-documentation, and integration-asset checks passed on Linux. The Rust suite ran
-4,002 tests: 4,000 passed, including the new history tests, and two existing
-integration tests failed:
+Formatting and Clippy with warnings denied passed on Linux. Focused history,
+unread, plain-text input, and notification tests passed. The isolated Rust suite
+ran 4,125 tests: 4,123 passed, including the fork-specific tests, and two tests
+failed in the full run:
 
 - `machine_api_recovers_a_stale_path_before_sending_a_mutation`: the remote
-  API bridge could not find its test session socket.
-- `server_survives_hangup_and_logs_why_it_stops`: the expected server shutdown
-  message did not appear in the test log.
+  API bridge could not find its test session socket. This is the same
+  reproducible environment-specific failure recorded before the merge.
+- `headless_scheduled_tasks_start_pending_agent_resume_without_foreground_client`:
+  a timing assertion failed in the full run and passed when rerun alone.
 
-The full check is therefore not green. Windows cross-lint also requires a
-Windows SDK that was not configured on the validation machine. Tests used
-`GIT_CONFIG_GLOBAL=/dev/null` to keep personal Git ignore rules out of their
-disposable repository fixtures.
+All 150 maintenance tests, six UI hot-path architecture tests, seven
+documentation contract tests, and 55 integration-asset tests passed. The full
+`just check` was not available because `just` was not installed; its Linux
+checks were run through the underlying commands instead. Windows cross-lint was
+not run because a Windows SDK was not configured on the validation machine.
+Repository fixtures used `GIT_CONFIG_GLOBAL=/dev/null` to keep personal Git
+ignore rules out of their disposable repositories.
 
 ## Fork maintenance
 
