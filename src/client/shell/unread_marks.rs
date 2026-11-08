@@ -1,9 +1,12 @@
-//! Panes and tabs the user marked unread, like marking an email unread.
+//! Panes, tabs, and workspaces the user marked unread, like marking an email
+//! unread.
 //!
 //! This is TUI presentation state kept per endpoint. A marked pane shows the
 //! `done` status on its agent row, tab, and workspace until the user views it
 //! again. Marking a tab marks the tab as a whole, so plain shells show it too
 //! and viewing the tab clears it even while a hidden pane is zoomed out of view.
+//! Marking a workspace marks only its sidebar entry, and viewing any of its
+//! tabs clears it.
 
 use std::collections::{HashMap, HashSet};
 
@@ -17,6 +20,8 @@ pub(super) struct UnreadMarks {
     panes: HashMap<String, bool>,
     /// Marked tab IDs, with the same waiting flag as `panes`.
     tabs: HashMap<String, bool>,
+    /// Marked workspace IDs, with the same waiting flag as `panes`.
+    workspaces: HashMap<String, bool>,
     /// Tabs the user marked, for the tab bar's dot, refreshed by `apply`.
     /// Tabs holding a marked agent are left out: the user marked the agent.
     marked_tabs: HashSet<String>,
@@ -36,6 +41,7 @@ struct Originals {
 pub(super) struct Visible<'a> {
     panes: HashSet<&'a str>,
     tabs: HashSet<&'a str>,
+    workspaces: HashSet<&'a str>,
 }
 
 impl<'a> Visible<'a> {
@@ -61,20 +67,26 @@ impl<'a> Visible<'a> {
             .iter()
             .map(|pane| pane.pane_id.as_str())
             .collect();
-        let tabs = snapshot
-            .panes
-            .iter()
-            .filter(|pane| panes.contains(pane.pane_id.as_str()))
-            .map(|pane| pane.tab_id.as_str())
-            .collect();
-        Self { panes, tabs }
+        let shown = || {
+            snapshot
+                .panes
+                .iter()
+                .filter(|pane| panes.contains(pane.pane_id.as_str()))
+        };
+        let tabs = shown().map(|pane| pane.tab_id.as_str()).collect();
+        let workspaces = shown().map(|pane| pane.workspace_id.as_str()).collect();
+        Self {
+            panes,
+            tabs,
+            workspaces,
+        }
     }
 }
 
 impl UnreadMarks {
     #[cfg(test)]
     pub(super) fn is_empty(&self) -> bool {
-        self.panes.is_empty() && self.tabs.is_empty()
+        self.panes.is_empty() && self.tabs.is_empty() && self.workspaces.is_empty()
     }
 
     /// Tabs the user marked from the tab menu, as of the last `apply`.
@@ -98,20 +110,36 @@ impl UnreadMarks {
         self.tabs.insert(tab_id, waiting);
     }
 
+    /// Marks a workspace's sidebar entry unread, without marking its tabs.
+    pub(super) fn mark_workspace(&mut self, workspace_id: String, visible: &Visible<'_>) {
+        let waiting = visible.workspaces.contains(workspace_id.as_str());
+        self.workspaces.insert(workspace_id, waiting);
+    }
+
+    fn len(&self) -> usize {
+        self.panes.len() + self.tabs.len() + self.workspaces.len()
+    }
+
     /// The user is no longer looking at this endpoint's panes.
     pub(super) fn leave_view(&mut self) {
-        for waiting in self.panes.values_mut().chain(self.tabs.values_mut()) {
+        for waiting in self
+            .panes
+            .values_mut()
+            .chain(self.tabs.values_mut())
+            .chain(self.workspaces.values_mut())
+        {
             *waiting = false;
         }
     }
 
-    /// Clears marks on visible panes and tabs the user has come back to.
-    /// Returns whether any cleared.
+    /// Clears marks on visible panes, tabs, and workspaces the user has come
+    /// back to. Returns whether any cleared.
     pub(super) fn acknowledge(&mut self, visible: &Visible<'_>) -> bool {
-        let before = self.panes.len() + self.tabs.len();
+        let before = self.len();
         acknowledge(&mut self.panes, &visible.panes);
         acknowledge(&mut self.tabs, &visible.tabs);
-        self.panes.len() + self.tabs.len() != before
+        acknowledge(&mut self.workspaces, &visible.workspaces);
+        self.len() != before
     }
 
     /// The status `agent` had before a mark raised it, for checks that must
@@ -149,7 +177,8 @@ impl UnreadMarks {
         }
     }
 
-    /// Shows marked panes and tabs, and their workspaces, as `done`.
+    /// Shows marked panes and tabs, their workspaces, and marked workspaces
+    /// as `done`.
     pub(super) fn apply(&mut self, snapshot: &mut ClientShellSnapshot) {
         let pane_ids: HashSet<&str> = snapshot
             .panes
@@ -165,6 +194,13 @@ impl UnreadMarks {
             .retain(|pane_id, _| pane_ids.contains(pane_id.as_str()));
         self.tabs
             .retain(|tab_id, _| tab_ids.contains(tab_id.as_str()));
+        let workspace_ids: HashSet<&str> = snapshot
+            .workspaces
+            .iter()
+            .map(|workspace| workspace.workspace_id.as_str())
+            .collect();
+        self.workspaces
+            .retain(|workspace_id, _| workspace_ids.contains(workspace_id.as_str()));
         self.marked_tabs = self.tabs.keys().cloned().collect();
         let mut tabs = self.marked_tabs.clone();
         for pane in &snapshot.panes {
@@ -172,15 +208,16 @@ impl UnreadMarks {
                 tabs.insert(pane.tab_id.clone());
             }
         }
-        if tabs.is_empty() {
+        if tabs.is_empty() && self.workspaces.is_empty() {
             return;
         }
-        let workspaces: HashSet<String> = snapshot
+        let mut workspaces: HashSet<String> = snapshot
             .tabs
             .iter()
             .filter(|tab| tabs.contains(&tab.tab_id))
             .map(|tab| tab.workspace_id.clone())
             .collect();
+        workspaces.extend(self.workspaces.keys().cloned());
         for agent in &mut snapshot.agents {
             if self.panes.contains_key(&agent.pane_id) || self.tabs.contains_key(&agent.tab_id) {
                 raise(
@@ -233,6 +270,17 @@ impl super::ClientShellState {
         let endpoint_id = self.active_endpoint_id.clone();
         self.mark_unread(&endpoint_id, |marks, visible| {
             marks.mark_tab(tab_id.to_owned(), visible);
+        });
+    }
+
+    /// Marks a workspace's sidebar entry unread.
+    pub(super) fn mark_workspace_unread(
+        &mut self,
+        endpoint_id: &crate::client::endpoint::ClientEndpointId,
+        workspace_id: String,
+    ) {
+        self.mark_unread(endpoint_id, |marks, visible| {
+            marks.mark_workspace(workspace_id, visible);
         });
     }
 
@@ -335,6 +383,7 @@ mod tests {
         Visible {
             panes: HashSet::from([pane_id]),
             tabs: HashSet::from([tab_id]),
+            workspaces: HashSet::from(["w1"]),
         }
     }
 
@@ -463,11 +512,49 @@ mod tests {
     }
 
     #[test]
+    fn marked_workspace_shows_done_only_on_the_workspace() {
+        let mut marks = UnreadMarks::default();
+        let mut snapshot = fixture();
+        marks.mark_workspace("w1".to_owned(), &Visible::default());
+        marks.apply(&mut snapshot);
+        use AgentStatus::*;
+        assert_eq!(statuses(&snapshot), (Idle, Idle, Unknown, Done));
+        assert!(marks.marked_tabs().is_empty());
+    }
+
+    #[test]
+    fn viewing_any_tab_in_a_marked_workspace_clears_it() {
+        let mut marks = UnreadMarks::default();
+        let mut snapshot = fixture();
+        marks.mark_workspace("w1".to_owned(), &Visible::default());
+        marks.apply(&mut snapshot);
+        marks.restore(&mut snapshot);
+        assert!(marks.acknowledge(&showing("shell", "t2")));
+        marks.apply(&mut snapshot);
+        assert_eq!(snapshot.workspaces[0].agent_status, AgentStatus::Idle);
+        assert!(marks.is_empty());
+    }
+
+    #[test]
+    fn marking_the_visible_workspace_waits_until_it_is_viewed_again() {
+        let mut marks = UnreadMarks::default();
+        let visible = showing("agent", "t1");
+        marks.mark_workspace("w1".to_owned(), &visible);
+        assert!(
+            !marks.acknowledge(&visible),
+            "still on screen after marking"
+        );
+        marks.leave_view();
+        assert!(marks.acknowledge(&visible), "came back");
+    }
+
+    #[test]
     fn closed_panes_and_tabs_drop_their_marks() {
         let mut marks = UnreadMarks::default();
         let mut snapshot = fixture();
         marks.mark_panes(["gone".to_owned()], &Visible::default());
         marks.mark_tab("gone".to_owned(), &Visible::default());
+        marks.mark_workspace("gone".to_owned(), &Visible::default());
         marks.apply(&mut snapshot);
         assert!(marks.is_empty());
     }

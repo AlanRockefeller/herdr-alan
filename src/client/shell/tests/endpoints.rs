@@ -2220,6 +2220,52 @@ fn context_menu_lookup_ignores_inactive_endpoint_workspaces() {
 }
 
 #[test]
+fn right_clicking_another_machines_workspace_offers_mark_unread() {
+    let (mut state, endpoint_id) = state_with_remote();
+    state.compose(100, 28).expect("combined endpoint frame");
+    let remote = state
+        .hits
+        .workspaces
+        .iter()
+        .find(|hit| hit.endpoint_id == endpoint_id)
+        .expect("remote workspace")
+        .rect;
+    let opened =
+        state.handle_raw_events(vec![RawInputEvent::Mouse(crossterm::event::MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Right),
+            column: remote.x + 2,
+            row: remote.y,
+            modifiers: KeyModifiers::empty(),
+        })]);
+    assert!(opened.actions.is_empty(), "must not switch machines");
+    let Some(ClientShellOverlay::ContextMenu(menu)) = state.overlay.as_ref() else {
+        panic!("remote workspace menu did not open");
+    };
+    assert!(matches!(
+        &menu.target,
+        ClientContextMenuTarget::EndpointWorkspace { endpoint_id: id, workspace_id }
+            if id == &endpoint_id && workspace_id == "ws_1"
+    ));
+    let labels: Vec<_> = menu.items().iter().map(|item| item.label).collect();
+    assert_eq!(labels, ["Mark unread"]);
+
+    let mut outcome = ClientShellInput::default();
+    state.activate_context_menu_item(0, &mut outcome);
+    assert!(outcome.actions.is_empty(), "must not switch machines");
+    let status = |state: &ClientShellState, id: &ClientEndpointId| {
+        state
+            .endpoints
+            .iter()
+            .find(|endpoint| &endpoint.endpoint_id == id)
+            .and_then(|endpoint| endpoint.snapshot.as_deref())
+            .map(|snapshot| snapshot.workspaces[0].agent_status)
+            .expect("endpoint snapshot")
+    };
+    assert_eq!(status(&state, &endpoint_id), AgentStatus::Done);
+    assert_eq!(status(&state, &ClientEndpointId::Local), AgentStatus::Idle);
+}
+
+#[test]
 fn future_surface_waits_for_its_exact_snapshot_revision() {
     let (mut state, _) = state_with_remote();
     let mut future = surface();

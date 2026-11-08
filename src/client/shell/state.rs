@@ -546,6 +546,11 @@ pub(super) enum ClientContextMenuTarget {
         endpoint_id: ClientEndpointId,
         pane_id: String,
     },
+    /// A workspace listed under a machine other than the active one.
+    EndpointWorkspace {
+        endpoint_id: ClientEndpointId,
+        workspace_id: String,
+    },
     Pane {
         pane_id: String,
         workspace_id: String,

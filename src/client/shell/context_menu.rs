@@ -5,7 +5,7 @@ impl ClientContextMenuOverlay {
         use ClientContextMenuAction as Action;
 
         let item = |label, action| ClientContextMenuItem { label, action };
-        match &self.target {
+        let mut items = match &self.target {
             ClientContextMenuTarget::Workspace { is_git: false, .. } => {
                 vec![item("Rename", Action::Rename), item("Close", Action::Close)]
             }
@@ -51,7 +51,8 @@ impl ClientContextMenuOverlay {
                 item("Close", Action::Close),
                 item("Mark unread", Action::MarkUnread),
             ],
-            ClientContextMenuTarget::Agent { .. } => vec![item("Mark unread", Action::MarkUnread)],
+            ClientContextMenuTarget::Agent { .. }
+            | ClientContextMenuTarget::EndpointWorkspace { .. } => Vec::new(),
             ClientContextMenuTarget::Pane {
                 source_pane_id,
                 has_manual_label,
@@ -81,7 +82,16 @@ impl ClientContextMenuOverlay {
                 ]);
                 items
             }
+        };
+        if matches!(
+            self.target,
+            ClientContextMenuTarget::Workspace { .. }
+                | ClientContextMenuTarget::Agent { .. }
+                | ClientContextMenuTarget::EndpointWorkspace { .. }
+        ) {
+            items.push(item("Mark unread", Action::MarkUnread));
         }
+        items
     }
 }
 
@@ -162,6 +172,26 @@ impl ClientShellState {
         }));
     }
 
+    /// Opens the menu for a workspace listed under a machine other than the
+    /// active one, which only offers to mark it unread.
+    pub(super) fn open_endpoint_workspace_context_menu(
+        &mut self,
+        endpoint_id: ClientEndpointId,
+        workspace_id: String,
+        x: u16,
+        y: u16,
+    ) {
+        self.overlay = Some(ClientShellOverlay::ContextMenu(ClientContextMenuOverlay {
+            target: ClientContextMenuTarget::EndpointWorkspace {
+                endpoint_id,
+                workspace_id,
+            },
+            x,
+            y,
+            highlighted: 0,
+        }));
+    }
+
     pub(super) fn open_pane_context_menu(&mut self, pane_id: String, x: u16, y: u16) {
         let Some(snapshot) = self.snapshot.as_deref() else {
             return;
@@ -230,6 +260,10 @@ impl ClientShellState {
                 endpoint_id,
                 pane_id,
             } => self.mark_panes_unread(&endpoint_id, vec![pane_id]),
+            ClientContextMenuTarget::EndpointWorkspace {
+                endpoint_id,
+                workspace_id,
+            } => self.mark_workspace_unread(&endpoint_id, workspace_id),
             ClientContextMenuTarget::Pane {
                 pane_id,
                 workspace_id,
@@ -288,6 +322,10 @@ impl ClientShellState {
             }
             ClientContextMenuAction::RemoveWorktree => {
                 self.begin_worktree_action_for(KeybindAction::RemoveWorktree, workspace_id, outcome)
+            }
+            ClientContextMenuAction::MarkUnread => {
+                let endpoint_id = self.active_endpoint_id.clone();
+                self.mark_workspace_unread(&endpoint_id, workspace_id);
             }
             ClientContextMenuAction::ToggleGroup => {
                 let key = self.snapshot.as_deref().and_then(|snapshot| {
